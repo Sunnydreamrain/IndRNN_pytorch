@@ -1,5 +1,5 @@
 # Independently Recurrent Neural Networks
-This code is to implement the [IndRNN](https://arxiv.org/abs/1803.04831). It is based on Pytorch. For all the experiments used in the paper, please refer to the [one](https://github.com/Sunnydreamrain/IndRNN_Theano_Lasagne) used Theano and Lasagne.
+This code is to implement the [IndRNN](https://arxiv.org/abs/1803.04831). It is based on Pytorch. For all the experiments used in the paper, please refer to the [one](https://github.com/Sunnydreamrain/IndRNN_Theano_Lasagne) using Theano and Lasagne.
 
 Please cite the following paper if you find it useful.  
 [Shuai Li, Wanqing Li, Chris Cook, Ce Zhu, and Yanbo Gao. "Independently Recurrent Neural Network (IndRNN): Building A Longer and Deeper RNN." CVPR 2018.](https://arxiv.org/abs/1803.04831)
@@ -23,7 +23,7 @@ Advantages over the RNN and/or LSTM:
 Experiments have demonstrated that IndRNN performs much better than the traditional RNN and LSTM models on various tasks such as the adding problem, sequential MNIST classification, language modelling and action recognition.
 
 # Usage  
-`IndRNN_onlyrecurrent.py` provides only the recurrent+activation of the IndRNN function. Therefore, processing of the input with dense connection or convolution operation is needed. This is usedful for adding batch normalization (BN) between the processing of input and activation function. Just consider it as an Relu function with recurrent connections. I believe this is more flexible since you can add all different processings to the inputs.
+`IndRNN_onlyrecurrent.py` provides only the `recurrent+activation of the IndRNN function`. Therefore, processing of the input with dense connection or convolution operation is needed. This is usedful for adding batch normalization (BN) between the processing of input and activation function. Just consider it as an Relu function with recurrent connections. I believe this is more flexible since you can add all different processings to the inputs.
 For the full IndRNN layer, please refer to the existing ones shown in the end of this page. Just for your convenience, here is an [example](https://github.com/StefOe/indrnn-pytorch/blob/master/indrnn.py). 
 
 
@@ -39,8 +39,8 @@ For this task, output is provided at each time step and can only use the informa
 ## For the skeleton-based Action Recognition example  
 `python -u Indrnn_action_train.py --dropout 0.25 --use_weightdecay_nohiddenW`   
 If use the CV test setting, add `--test_CV`. For example:  
-`python -u Indrnn_action_train.py --test_CV --dropout 0.1 --use_weightdecay_nohiddenW` 
-Please find details in the directoy [action recognition](https://github.com/Sunnydreamrain/IndRNN_Theano_Lasagne/tree/master/action%20recognition).  
+`python -u Indrnn_action_train.py --test_CV --dropout 0.1 --use_weightdecay_nohiddenW`   
+Please find details in the directoy [action recognition](https://github.com/Sunnydreamrain/IndRNN_pytorch/tree/master/action_recognition).  
 
 # Considerations in implementation  
 ### 1, Initialization of the recurrent weights
