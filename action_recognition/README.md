@@ -1,7 +1,7 @@
 ## The skeleton-based Action Recognition example  
 ### Usage  
 1, First, ready the data. Two ways.  
-  (1) Use your own data reader. Change the code at [Indrnn_action_train.py](https://github.com/Sunnydreamrain/IndRNN_Theano_Lasagne/blob/master/action%20recognition/Indrnn_action_train.py#L69)   
+  (1) Use your own data reader. Change the code at [Indrnn_action_train.py](https://github.com/Sunnydreamrain/IndRNN_pytorch/blob/master/action_recognition/Indrnn_action_train.py#L80)   
   (2) Use the provided data reader. Generate the data ndarray. Download the NTU RGB+D dataset, change the skeleton into a ndarray, and keep the length and label of each data entry.  
 2, Run the code. 
    `python -u Indrnn_action_train.py --dropout 0.25 --use_weightdecay_nohiddenW`   
