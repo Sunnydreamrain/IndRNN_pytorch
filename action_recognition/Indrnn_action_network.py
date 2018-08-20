@@ -73,7 +73,9 @@ class stackedIndRNN_encoder(nn.Module):
         if 'DIs' in name and 'weight' in name:
           param.data.uniform_(-args.ini_in2hid,args.ini_in2hid)               
         if 'bns' in name and 'weight' in name:
-          param.data.fill_(0)                  
+          param.data.fill_(1.0)        
+        if 'bias' in name:
+          param.data.fill_(0.0)             
     def forward(self, input):
         all_output = []
         rnnoutputs={}
