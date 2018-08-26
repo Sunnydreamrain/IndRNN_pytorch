@@ -1,7 +1,7 @@
 # Independently Recurrent Neural Networks
 This code is to implement the [IndRNN](https://arxiv.org/abs/1803.04831). It is based on Pytorch. For all the experiments used in the paper, please refer to the [one](https://github.com/Sunnydreamrain/IndRNN_Theano_Lasagne) using Theano and Lasagne.
 
-[`cuda_IndRNN_onlyrecurrent` is the CUDA version. It is much faster than the simple pytorch implementation. For the sequential MNIST example (length), it runs over 31 times faster.]()     
+`cuda_IndRNN_onlyrecurrent` is the CUDA version. It is much faster than the simple pytorch implementation. For the sequential MNIST example (length 784), it runs over `31` times faster.     
 
 Please cite the following paper if you find it useful.  
 [Shuai Li, Wanqing Li, Chris Cook, Ce Zhu, and Yanbo Gao. "Independently Recurrent Neural Network (IndRNN): Building A Longer and Deeper RNN." CVPR 2018.](https://arxiv.org/abs/1803.04831)
@@ -26,7 +26,7 @@ Experiments have demonstrated that IndRNN performs much better than the traditio
 
 # Usage  
 `IndRNN_onlyrecurrent.py` provides only the `recurrent+activation of the IndRNN function`. Therefore, processing of the input with dense connection or convolution operation is needed. This is usedful for adding batch normalization (BN) between the processing of input and activation function. Just consider it as an Relu function with recurrent connections. I believe this is more flexible since you can add all different processings to the inputs.   
-`cuda_IndRNN_onlyrecurrent` is the CUDA version. It is much faster than the simple pytorch implementation. For the sequential MNIST example (length), it runs over 31 times faster.   
+`cuda_IndRNN_onlyrecurrent` is the CUDA version. It is much faster than the simple pytorch implementation. For the sequential MNIST example (length 784), it runs over 31 times faster.   
 For the full IndRNN layer, please refer to the existing ones shown in the end of this page. Just for your convenience, here is an [example](https://github.com/StefOe/indrnn-pytorch/blob/master/indrnn.py). 
 
 
