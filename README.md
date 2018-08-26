@@ -29,6 +29,12 @@ Experiments have demonstrated that IndRNN performs much better than the traditio
 `cuda_IndRNN_onlyrecurrent` is the CUDA version. It is much faster than the simple pytorch implementation. For the sequential MNIST example (length 784), it runs over 31 times faster.   
 For the full IndRNN layer, please refer to the existing ones shown in the end of this page. Just for your convenience, here is an [example](https://github.com/StefOe/indrnn-pytorch/blob/master/indrnn.py). 
 
+### Requirements  
+- Pytorch  
+
+For the CUDA version
+- CuPy  
+- pynvrtc  
 
 ## For the language modeling example using character-level Penn Treebank (PTB-c)   
 `python -u train_cPTB.py --data_aug --hidden_units 2000 --num_layers 6 --dropout 0.25 --seq_len 150 --use_weightdecay_nohiddenW`  
