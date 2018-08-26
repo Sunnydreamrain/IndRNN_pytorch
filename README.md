@@ -1,6 +1,8 @@
 # Independently Recurrent Neural Networks
 This code is to implement the [IndRNN](https://arxiv.org/abs/1803.04831). It is based on Pytorch. For all the experiments used in the paper, please refer to the [one](https://github.com/Sunnydreamrain/IndRNN_Theano_Lasagne) using Theano and Lasagne.
 
+[`cuda_IndRNN_onlyrecurrent` is the CUDA version. It is much faster than the simple pytorch implementation. For the sequential MNIST example (length), it runs over 31 times faster.]     
+
 Please cite the following paper if you find it useful.  
 [Shuai Li, Wanqing Li, Chris Cook, Ce Zhu, and Yanbo Gao. "Independently Recurrent Neural Network (IndRNN): Building A Longer and Deeper RNN." CVPR 2018.](https://arxiv.org/abs/1803.04831)
 
