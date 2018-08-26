@@ -1,1 +1,0 @@
-CUDA_VISIBLE_DEVICES=0 python -u Indrnn_action_train.py --dropout 0.25 --use_weightdecay_nohiddenW --num_layers 6 --hidden_units 512 --batch_size 128 2>&1 | tee logindrnn_6layers_512_drop25_bs128.log &
