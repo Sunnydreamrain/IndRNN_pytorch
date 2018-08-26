@@ -84,10 +84,6 @@ dh_test= testDataHandler(batch_size,seq_len)
 num_train_batches=int(np.ceil(dh_train.GetDatasetSize()/(batch_size+0.0)))
 num_eval_batches=int(np.ceil(dh_eval.GetDatasetSize()/(batch_size+0.0)))
 num_test_batches=int(np.ceil(dh_test.GetDatasetSize()/(batch_size+0.0)))
-labelname='test_ntus_label.npy'
-if args.test_CV:
-  labelname='test_CV_ntus_label.npy'
-testlabels=np.load(labelname)
 
 
 def train(num_train_batches):
@@ -160,9 +156,11 @@ def test(dh,num_batches,use_bn_trainstat=False):
   start_time = time.time()
   total_testdata=dh_test.GetDatasetSize()  
   total_ave_acc=np.zeros((total_testdata,outputclass))
+  testlabels=np.zeros((total_testdata))
   while(1):  
     inputs,targets,index=dh.GetBatch()
     inputs=inputs.transpose(1,0,2,3)
+    testlabels[index]=targets
     inputs=Variable(torch.from_numpy(inputs).cuda())
     targets=Variable(torch.from_numpy(np.int64(targets)).cuda())
         
