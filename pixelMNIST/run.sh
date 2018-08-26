@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=0 python -u Indrnn_mnist_train.py --use_permute --lr 2e-4 --num_layers 6 --use_weightdecay_nohiddenW --decayfactor 1e-4 --hidden_size 128 --batch_size 64 --dropout 0.1 --pThre 100 --constrain_U 2>&1 | tee logindrnn_lr2e4_6layers_128_drop1_bs64_decay1e4_Thre100reduced_permute_eval.log &

@@ -25,18 +25,31 @@ opts.train_opts(parser)
 args = parser.parse_args()
 print(args)
 
-import Indrnn_action_network
+import Indrnn_mnist_network
+
 
 batch_size = args.batch_size
-seq_len=args.seq_len
-outputclass=60
-indim=50
+outputclass=10
+indim=1
 gradientclip_value=10
-U_bound=Indrnn_action_network.U_bound
+U_bound=Indrnn_mnist_network.U_bound
+use_permute=args.use_permute
+from Data_gen import DataHandler,evalDataHandler,testDataHandler
+dh_train=DataHandler(batch_size)
+dh_eval=evalDataHandler(batch_size)
+dh_test=testDataHandler(batch_size)
+num_train_batches=int(np.ceil(dh_train.GetDatasetSize()/(batch_size+0.0)))
+num_eval_batches=int(np.ceil(dh_eval.GetDatasetSize()/(batch_size+0.0)))
+num_test_batches=int(np.ceil(dh_test.GetDatasetSize()/(batch_size+0.0)))
+x,y=dh_train.GetBatch()
+seq_len=x.shape[1]
+print(num_train_batches,num_test_batches)
+feature_size=x.shape[2]
+if seq_len!=args.seq_len:
+  print('error seq_len')
+  assert 2==3
 
-
-
-model = Indrnn_action_network.stackedIndRNN_encoder(indim, outputclass)  
+model = Indrnn_mnist_network.stackedIndRNN_encoder(indim, outputclass)  
 model.cuda()
 criterion = nn.CrossEntropyLoss()
 
@@ -69,25 +82,7 @@ else:
   else:                      
     optimizer=torch.optim.Adam(model.parameters(), lr=learning_rate)
 
-if args.test_CV:
-  train_datasets='train_CV_ntus'
-  test_dataset='test_CV_ntus'
-else:
-  train_datasets='train_ntus'
-  test_dataset='test_ntus'
-  
-from data_reader_numpy_witheval import DataHandler_train,DataHandler_eval  
-from data_reader_numpy_test import DataHandler as testDataHandler
-dh_train = DataHandler_train(batch_size,seq_len)
-dh_eval = DataHandler_eval(batch_size,seq_len)
-dh_test= testDataHandler(batch_size,seq_len)
-num_train_batches=int(np.ceil(dh_train.GetDatasetSize()/(batch_size+0.0)))
-num_eval_batches=int(np.ceil(dh_eval.GetDatasetSize()/(batch_size+0.0)))
-num_test_batches=int(np.ceil(dh_test.GetDatasetSize()/(batch_size+0.0)))
-labelname='test_ntus_label.npy'
-if args.test_CV:
-  labelname='test_CV_ntus_label.npy'
-testlabels=np.load(labelname)
+
 
 
 def train(num_train_batches):
@@ -97,10 +92,10 @@ def train(num_train_batches):
   start_time = time.time()
   for batchi in range(0,num_train_batches):
     inputs,targets=dh_train.GetBatch()
-    inputs=inputs.transpose(1,0,2,3)
+    inputs=inputs.transpose(1,0,2)
     
-    inputs=Variable(torch.from_numpy(inputs).cuda(), requires_grad=True)
-    targets=Variable(torch.from_numpy(np.int64(targets)).cuda(), requires_grad=False)
+    inputs=torch.from_numpy(inputs).cuda()
+    targets=torch.from_numpy(np.int64(targets)).cuda()
 
     model.zero_grad()
     if args.constrain_U:
@@ -109,13 +104,13 @@ def train(num_train_batches):
     loss = criterion(output, targets)
 
     pred = output.data.max(1)[1] # get the index of the max log-probability
-    accuracy = pred.eq(targets.data).cpu().sum().numpy()/(0.0+targets.size(0))      
+    accuracy = pred.eq(targets.data).cpu().sum()      
           
     loss.backward()
     clip_gradient(model,gradientclip_value)
     optimizer.step()
     
-    tacc=tacc+accuracy#loss.data.cpu().numpy()#accuracy
+    tacc=tacc+accuracy.numpy()/(0.0+targets.size(0))#loss.data.cpu().numpy()#accuracy
     count+=1
   elapsed = time.time() - start_time
   print ("training accuracy: ", tacc/(count+0.0)  )
@@ -125,7 +120,7 @@ def set_bn_train(m):
     classname = m.__class__.__name__
     if classname.find('BatchNorm') != -1:
       m.train()       
-def eval(dh,num_batches,use_bn_trainstat=False):
+def eval(dh,num_batches,Is_test=False,use_bn_trainstat=False):
   model.eval()
   if use_bn_trainstat:
     model.apply(set_bn_train)
@@ -134,54 +129,26 @@ def eval(dh,num_batches,use_bn_trainstat=False):
   start_time = time.time()
   while(1):  
     inputs,targets=dh.GetBatch()
-    inputs=inputs.transpose(1,0,2,3)
-    inputs=Variable(torch.from_numpy(inputs).cuda())
-    targets=Variable(torch.from_numpy(np.int64(targets)).cuda())
+    inputs=inputs.transpose(1,0,2)
+    inputs=torch.from_numpy(inputs).cuda()
+    targets=torch.from_numpy(np.int64(targets)).cuda()
         
     output=model(inputs)
+    output=output.detach()
     pred = output.data.max(1)[1] # get the index of the max log-probability
-    accuracy = pred.eq(targets.data).cpu().sum().numpy()        
-    tacc+=accuracy
+    accuracy = pred.eq(targets.data).cpu().sum()        
+    tacc+=accuracy.numpy()
     count+=1
-    if count==num_batches*args.eval_fold:
+    if count==num_batches:
       break
   elapsed = time.time() - start_time
-  print ("eval accuracy: ", tacc/(count*targets.data.size(0)+0.0)  )
+  if Is_test:
+    print ("test accuracy: ", tacc/(count*targets.data.size(0)+0.0)  )
+  else:
+    print ("eval accuracy: ", tacc/(count*targets.data.size(0)+0.0)  )
   #print ('eval time per batch: ', elapsed/(count+0.0))
   return tacc/(count*targets.data.size(0)+0.0)
 
-
-def test(dh,num_batches,use_bn_trainstat=False):
-  model.eval()
-  if use_bn_trainstat:
-    model.apply(set_bn_train)
-  tacc=0
-  count=0  
-  start_time = time.time()
-  total_testdata=dh_test.GetDatasetSize()  
-  total_ave_acc=np.zeros((total_testdata,outputclass))
-  while(1):  
-    inputs,targets,index=dh.GetBatch()
-    inputs=inputs.transpose(1,0,2,3)
-    inputs=Variable(torch.from_numpy(inputs).cuda())
-    targets=Variable(torch.from_numpy(np.int64(targets)).cuda())
-        
-    output=model(inputs)
-    pred = output.data.max(1)[1] # get the index of the max log-probability
-    accuracy = pred.eq(targets.data).cpu().sum().numpy()    
-    total_ave_acc[index]+=output.data.cpu().numpy()
-    
-    tacc+=accuracy
-    count+=1
-    if count==num_batches*args.test_no:
-      break    
-  #total_ave_acc/=args.test_no
-  top = np.argmax(total_ave_acc, axis=-1)
-  eval_acc=np.mean(np.equal(top, testlabels))    
-  elapsed = time.time() - start_time
-  print ("test accuracy: ", tacc/(count*targets.data.size(0)+0.0), eval_acc  )
-  #print ('test time per batch: ', elapsed/(count+0.0))
-  return tacc/(count*targets.data.size(0)+0.0)#, eval_acc/(total_testdata+0.0)
 
 def clip_gradient(model, clip):
     for p in model.parameters():
@@ -199,39 +166,39 @@ def clip_weight(RNNmodel, clip):
         param.data.clamp_(-clip,clip)
     
 lastacc=0
-dispFreq=20
+dispFreq=100
 patience=0
-reduced=1
 for batchi in range(1,10000000):
   for i in range(num_train_batches//dispFreq):
     train(dispFreq)
-  test_acc=eval(dh_eval,num_eval_batches,args.use_bneval)
+  test_acc=eval(dh_eval,num_eval_batches)
+  test_acc1=eval(dh_eval,num_eval_batches,False,True)#use the individual statistics of the batch
 
   if (test_acc >lastacc):
     model_clone = copy.deepcopy(model.state_dict())   
     opti_clone = copy.deepcopy(optimizer.state_dict()) 
     lastacc=test_acc
     patience=0
-  elif patience>int(args.pThre/reduced+0.5):
-    reduced=reduced*2
+  elif patience>args.pThre:
     print ('learning rate',learning_rate)
+    print('epocs: ', batchi)
     model.load_state_dict(model_clone)
     optimizer.load_state_dict(opti_clone)
     patience=0
     learning_rate=learning_rate*0.1
-    adjust_learning_rate(optimizer,learning_rate)     
+    adjust_learning_rate(optimizer,learning_rate)       
     if learning_rate<args.end_rate:
       break  
-    test_acc=test(dh_test,num_test_batches)     
+    test_acc=eval(dh_test,num_test_batches,True)   
  
   else:
     patience+=1 
     
-test_acc=test(dh_test,num_test_batches)  
-test_acc=test(dh_test,num_test_batches,True)     
-save_name='indrnn_action_model' 
-with open(save_name, 'wb') as f:
-    torch.save(model, f)
+test_acc=test(dh_test,num_test_batches,True)   
+test_acc=test(dh_test,num_test_batches,True,True)    
+# save_name='indrnn_pixelmnist_model' 
+# with open(save_name, 'wb') as f:
+#     torch.save(model, f)
 
 
 

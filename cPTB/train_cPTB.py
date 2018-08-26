@@ -82,7 +82,7 @@ if args.use_weightdecay_nohiddenW:
         ], lr=learning_rate) 
 else:  
   if args.opti=='sgd':   
-    optimizer=torch.optim.Adam(model.parameters(), lr=learning_rate,momentum=0.9,nesterov=True)
+    optimizer=torch.optim.SGD(model.parameters(), lr=learning_rate,momentum=0.9,nesterov=True)
   else:                      
     optimizer=torch.optim.Adam(model.parameters(), lr=learning_rate)
 
@@ -93,7 +93,7 @@ def train():
   tbpc=0
   count=0
   start_time = time.time()
-  hidden=Variable(torch.zeros(args.num_layers,batch_size,args.hidden_size).cuda()) 
+  hidden=Variable(torch.zeros(args.num_layers,batch_size,args.hidden_size).cuda(), requires_grad=False) 
   dropindex=np.random.randint(seq_len*5)  
   for batchi, (x, y) in enumerate(data_iterator(train_data[dropindex:], batch_size, seq_len)): 
     inputs=x
@@ -128,16 +128,15 @@ def set_bn_train(m):
     classname = m.__class__.__name__
     if classname.find('BatchNorm') != -1:
       m.train()    
-def eval(data,Is_test=False):
+def eval(data,Is_test=False,use_bn_trainstat=False):
   model.eval()
-  use_bn_trainstat=False
   if use_bn_trainstat:
     model.apply(set_bn_train)
   tperp=0
   tbpc=0
   count=0  
   start_time = time.time()
-  hidden=Variable(torch.zeros(args.num_layers,batch_size,args.hidden_size).cuda())
+  hidden=Variable(torch.zeros(args.num_layers,batch_size,args.hidden_size).cuda(), requires_grad=False)
   for batchi, (x, y) in enumerate(data_iterator(data, args.batch_size, args.seq_len)):
     inputs=x
     targets=y
@@ -149,6 +148,7 @@ def eval(data,Is_test=False):
         
     output,hidden=model(inputs,hidden)
     hidden = hidden.detach()
+    output = output.detach() # to reduce the memory in case two graphs are generated due to the scoping rule of python
     loss = criterion(output, targets)
     perp=torch.exp(loss)
     bpc = (loss/np.log(2.0))   
@@ -179,14 +179,9 @@ def clip_weight(RNNmodel, clip):
       if 'weight_hh' in name:
         param.data.clamp_(-clip,clip)
 
-aveloss=0
-aveacc=0
 lastperp=10000
-dispFreq=20
-testnos=20
-stepcount=0   
 patience=0
-patienceThre=args.pThre 
+reduced=1
 for batchi in range(1,10000000):
   train()
   test_perp=eval(valid_data)
@@ -195,21 +190,23 @@ for batchi in range(1,10000000):
     opti_clone = copy.deepcopy(optimizer.state_dict())
     lastperp=test_perp
     patience=0
-  elif patience>patienceThre:
+  elif patience>int(args.pThre/reduced+0.5):
+    reduced=reduced*2
     print ('learning rate',learning_rate)
     model.load_state_dict(model_clone)
     optimizer.load_state_dict(opti_clone)
     patience=0
-    learning_rate=learning_rate*0.1#np.float32()
-    adjust_learning_rate(optimizer,learning_rate)    
-    test_acc=eval(test_data,True)      
+    learning_rate=learning_rate*0.2#np.float32()
+    adjust_learning_rate(optimizer,learning_rate)      
     if learning_rate<1e-6:
-      break 
+      break   
+    test_acc=eval(test_data,True)  
   else:
     patience+=1 
     
 
 test_acc=eval(test_data,True) 
+test_acc=eval(test_data,True,True) 
 save_name='indrnn_cPTB_model' 
 with open(save_name, 'wb') as f:
     torch.save(model, f)

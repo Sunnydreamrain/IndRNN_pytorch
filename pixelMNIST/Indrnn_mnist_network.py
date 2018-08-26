@@ -9,13 +9,11 @@ import torch.nn.functional as F
 import numpy as np
 
 from cuda_IndRNN_onlyrecurrent import IndRNN_onlyrecurrent as IndRNN
-#from IndRNN_onlyrecurrent import IndRNN_onlyrecurrent as IndRNN 
-class Batch_norm_step(nn.Module):
+#from IndRNN_onlyrecurrent import IndRNN_onlyrecurrent as IndRNN
+ 
+class Batch_norm_overtime(nn.Module):
     def __init__(self,  hidden_size,seq_len):
-        super(Batch_norm_step, self).__init__()
-        self.hidden_size = hidden_size
-        
-        self.max_time_step=seq_len
+        super(Batch_norm_overtime, self).__init__()
         self.bn = nn.BatchNorm1d(hidden_size) 
 
     def forward(self, x):
@@ -46,7 +44,7 @@ dropout_overtime=Dropout_overtime.apply
 
 import argparse
 import opts     
-parser = argparse.ArgumentParser(description='pytorch action')
+parser = argparse.ArgumentParser(description='pytorch pixel mnist')
 opts.train_opts(parser)
 args = parser.parse_args()
 MAG=args.MAG
@@ -59,7 +57,7 @@ class stackedIndRNN_encoder(nn.Module):
         hidden_size=args.hidden_size
         
         self.DIs=nn.ModuleList()
-        denseinput=nn.Linear(input_size*3, hidden_size, bias=True)
+        denseinput=nn.Linear(input_size, hidden_size, bias=True)
         self.DIs.append(denseinput)
         for x in range(args.num_layers - 1):
             denseinput = nn.Linear(hidden_size, hidden_size, bias=True)
@@ -67,7 +65,7 @@ class stackedIndRNN_encoder(nn.Module):
         
         self.BNs = nn.ModuleList()
         for x in range(args.num_layers):
-            bn = Batch_norm_step(hidden_size,args.seq_len)
+            bn = Batch_norm_overtime(hidden_size,args.seq_len)
             self.BNs.append(bn)                      
   
         self.RNNs = nn.ModuleList()
@@ -89,28 +87,28 @@ class stackedIndRNN_encoder(nn.Module):
         if 'DIs' in name and 'weight' in name:
           param.data.uniform_(-args.ini_in2hid,args.ini_in2hid)               
         if 'bns' in name and 'weight' in name:
-          param.data.fill_(1)      
+          param.data.fill_(1)     
         if 'bias' in name:
-          param.data.fill_(0.0)              
+          param.data.fill_(0.0)                        
     def forward(self, input):
         all_output = []
         rnnoutputs={}
         hidden_x={}               
-        seq_len, batch_size, indim,_=input.size()
-             
-        input=input.view(seq_len,batch_size,3*indim)                  
+        seq_len, batch_size, indim=input.size()            
+                 
         for x in range(1,len(self.RNNs)+1):
           hidden_x['hidden%d'%x]=Variable(torch.zeros(1,batch_size,args.hidden_size).cuda())
                             
         rnnoutputs['rnnlayer0']=input
         for x in range(1,len(self.RNNs)+1):
+          rnnoutputs['rnnlayer%d'%(x-1)]=rnnoutputs['rnnlayer%d'%(x-1)].contiguous()
           rnnoutputs['rnnlayer%d'%(x-1)]=rnnoutputs['rnnlayer%d'%(x-1)].view(seq_len*batch_size,-1)
           rnnoutputs['rnnlayer%d'%(x-1)]=self.DIs[x-1](rnnoutputs['rnnlayer%d'%(x-1)])   
           rnnoutputs['rnnlayer%d'%(x-1)]=rnnoutputs['rnnlayer%d'%(x-1)].view(seq_len,batch_size,-1)  
           rnnoutputs['rnnlayer%d'%x]= self.RNNs[x-1](rnnoutputs['rnnlayer%d'%(x-1)], hidden_x['hidden%d'%x])        
           rnnoutputs['rnnlayer%d'%x]=self.BNs[x-1](rnnoutputs['rnnlayer%d'%x])     
           if args.dropout>0:
-            rnnoutputs['rnnlayer%d'%x]= dropout_overtime(rnnoutputs['rnnlayer%d'%x],args.dropout,self.training) 
+            rnnoutputs['rnnlayer%d'%x]= dropout_overtime(rnnoutputs['rnnlayer%d'%x],args.dropout,self.training)
         temp=rnnoutputs['rnnlayer%d'%len(self.RNNs)][-1]
         output = self.lastfc(temp)
         return output                

@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=0 python -u train_cPTB.py --hidden_size 2000 --num_layers 6 --dropout 0.25 --seq_len 150 --use_weightdecay_nohiddenW 2>&1 | tee log_6layers_2000_bs128_drop25_seq150_testgithub.log &

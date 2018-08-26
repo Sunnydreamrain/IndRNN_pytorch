@@ -9,13 +9,11 @@ import torch.nn.functional as F
 import numpy as np
 
 from cuda_IndRNN_onlyrecurrent import IndRNN_onlyrecurrent as IndRNN
-#from IndRNN_onlyrecurrent import IndRNN_onlyrecurrent as IndRNN 
-class Batch_norm_step(nn.Module):
+#from IndRNN_onlyrecurrent import IndRNN_onlyrecurrent as IndRNN
+ 
+class Batch_norm_overtime(nn.Module):
     def __init__(self,  hidden_size,seq_len):
-        super(Batch_norm_step, self).__init__()
-        self.hidden_size = hidden_size
-        
-        self.max_time_step=seq_len
+        super(Batch_norm_overtime, self).__init__()
         self.bn = nn.BatchNorm1d(hidden_size) 
 
     def forward(self, x):
@@ -23,30 +21,11 @@ class Batch_norm_step(nn.Module):
         x= self.bn(x.clone())
         x=x.permute(2,0,1)
         return x
-class Dropout_overtime(torch.autograd.Function):
-  @staticmethod
-  def forward(ctx, input, p=0.5,training=False):
-    output = input.clone()
-    noise = input.data.new(input.size(-2),input.size(-1))  #torch.ones_like(input[0])
-    if training:            
-      noise.bernoulli_(1 - p).div_(1 - p)
-      noise = noise.unsqueeze(0).expand_as(input)
-      output.mul_(noise)
-    ctx.save_for_backward(noise)
-    ctx.training=training
-    return output
-  @staticmethod
-  def backward(ctx, grad_output):
-    noise,=ctx.saved_tensors
-    if ctx.training:
-      return grad_output.mul(noise),None,None
-    else:
-      return grad_output,None,None
-dropout_overtime=Dropout_overtime.apply
+
 
 import argparse
 import opts     
-parser = argparse.ArgumentParser(description='pytorch action')
+parser = argparse.ArgumentParser(description='pytorch pixel mnist')
 opts.train_opts(parser)
 args = parser.parse_args()
 MAG=args.MAG
@@ -56,10 +35,10 @@ U_lowbound=np.power(10,(np.log10(1.0/MAG)/args.seq_len))
 class stackedIndRNN_encoder(nn.Module):
     def __init__(self, input_size, outputclass):
         super(stackedIndRNN_encoder, self).__init__()        
-        hidden_size=args.hidden_size
+        hidden_size=args.hidden_units
         
         self.DIs=nn.ModuleList()
-        denseinput=nn.Linear(input_size*3, hidden_size, bias=True)
+        denseinput=nn.Linear(input_size, hidden_size, bias=True)
         self.DIs.append(denseinput)
         for x in range(args.num_layers - 1):
             denseinput = nn.Linear(hidden_size, hidden_size, bias=True)
@@ -67,7 +46,7 @@ class stackedIndRNN_encoder(nn.Module):
         
         self.BNs = nn.ModuleList()
         for x in range(args.num_layers):
-            bn = Batch_norm_step(hidden_size,args.seq_len)
+            bn = Batch_norm_overtime(hidden_size,args.seq_len)
             self.BNs.append(bn)                      
   
         self.RNNs = nn.ModuleList()
@@ -79,6 +58,9 @@ class stackedIndRNN_encoder(nn.Module):
             
         self.lastfc = nn.Linear(hidden_size, outputclass, bias=True)
         self.init_weights()
+        self.noise_rnn={}
+        for x in range(len(self.RNNs)):
+          self.noise_rnn['rnnlayer%d'%x]=torch.FloatTensor(args.hidden_units).cuda() 
 
     def init_weights(self):
       for name, param in self.named_parameters():
@@ -89,28 +71,38 @@ class stackedIndRNN_encoder(nn.Module):
         if 'DIs' in name and 'weight' in name:
           param.data.uniform_(-args.ini_in2hid,args.ini_in2hid)               
         if 'bns' in name and 'weight' in name:
-          param.data.fill_(1)      
+          param.data.fill_(1)     
         if 'bias' in name:
-          param.data.fill_(0.0)              
+          param.data.fill_(0.0)                        
     def forward(self, input):
         all_output = []
         rnnoutputs={}
         hidden_x={}               
-        seq_len, batch_size, indim,_=input.size()
+        seq_len, batch_size, indim=input.size()
+        
+        if args.dropout>0:
+          for x in range(len(self.RNNs)):
+            self.noise_rnn['rnnlayer%d'%x]=torch.FloatTensor(args.batch_size,args.hidden_units).cuda()
+            self.noise_rnn['rnnlayer%d'%x].bernoulli_(1 - args.dropout).div_(1 - args.dropout)
+            self.noise_rnn['rnnlayer%d'%x]=self.noise_rnn['rnnlayer%d'%x].unsqueeze(0).expand(args.seq_len, args.batch_size, args.hidden_units)
+            if not self.training:
+              self.noise_rnn['rnnlayer%d'%x].fill_(1)    
+            self.noise_rnn['rnnlayer%d'%x]=Variable(self.noise_rnn['rnnlayer%d'%x]) 
              
-        input=input.view(seq_len,batch_size,3*indim)                  
+                 
         for x in range(1,len(self.RNNs)+1):
-          hidden_x['hidden%d'%x]=Variable(torch.zeros(1,batch_size,args.hidden_size).cuda())
+          hidden_x['hidden%d'%x]=Variable(torch.zeros(1,batch_size,args.hidden_units).cuda())
                             
         rnnoutputs['rnnlayer0']=input
         for x in range(1,len(self.RNNs)+1):
+          rnnoutputs['rnnlayer%d'%(x-1)]=rnnoutputs['rnnlayer%d'%(x-1)].contiguous()
           rnnoutputs['rnnlayer%d'%(x-1)]=rnnoutputs['rnnlayer%d'%(x-1)].view(seq_len*batch_size,-1)
           rnnoutputs['rnnlayer%d'%(x-1)]=self.DIs[x-1](rnnoutputs['rnnlayer%d'%(x-1)])   
           rnnoutputs['rnnlayer%d'%(x-1)]=rnnoutputs['rnnlayer%d'%(x-1)].view(seq_len,batch_size,-1)  
           rnnoutputs['rnnlayer%d'%x]= self.RNNs[x-1](rnnoutputs['rnnlayer%d'%(x-1)], hidden_x['hidden%d'%x])        
           rnnoutputs['rnnlayer%d'%x]=self.BNs[x-1](rnnoutputs['rnnlayer%d'%x])     
           if args.dropout>0:
-            rnnoutputs['rnnlayer%d'%x]= dropout_overtime(rnnoutputs['rnnlayer%d'%x],args.dropout,self.training) 
+            rnnoutputs['rnnlayer%d'%x]= rnnoutputs['rnnlayer%d'%x]*self.noise_rnn['rnnlayer%d'%(x-1)]
         temp=rnnoutputs['rnnlayer%d'%len(self.RNNs)][-1]
         output = self.lastfc(temp)
         return output                

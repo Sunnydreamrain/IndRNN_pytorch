@@ -29,6 +29,7 @@ import Indrnn_action_network
 
 batch_size = args.batch_size
 seq_len=args.seq_len
+hidden_units=args.hidden_units
 outputclass=60
 indim=50
 gradientclip_value=10
