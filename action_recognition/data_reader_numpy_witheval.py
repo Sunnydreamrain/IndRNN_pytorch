@@ -100,6 +100,8 @@ class batch_thread_train():
             index=lenperseg*framei + np.random.randint(len_data-lenperseg*(self.seq_len-1))
           else:
             index=lenperseg*framei + np.random.randint(lenperseg)    
+          # Making the change as the index can be a floating point number
+          index = int(index)
           sample[framei]=dataset[index]
           
       #print(sample)
@@ -209,7 +211,9 @@ class batch_thread_eval():
           if framei==self.seq_len-1:
             index=lenperseg*framei + np.random.randint(len_data-lenperseg*(self.seq_len-1))
           else:
-            index=lenperseg*framei + np.random.randint(lenperseg)    
+            index=lenperseg*framei + np.random.randint(lenperseg)  
+          # Making the change as the index can be a floating point number
+          index = int(index)
           sample[framei]=dataset[index]
         #print (index,lenperseg)  
         
