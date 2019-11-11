@@ -80,9 +80,7 @@ class IndRNN_onlyrecurrent(nn.Module):
     is the input at time `t`. (*) is element-wise multiplication.
 
     Args:
-        hidden_size: The number of features in the hidden state `h`
-        batch_first: If ``True``, then the input and output tensors are provided
-            as `(batch, seq, feature)`
+        hidden_size: The number of features in the hidden state `h`        
 
     Inputs: input, h_0
         - **input** of shape `(seq_len, batch, input_size)`: tensor containing the features
@@ -90,71 +88,46 @@ class IndRNN_onlyrecurrent(nn.Module):
           sequence. See :func:`torch.nn.utils.rnn.pack_padded_sequence`
           or :func:`torch.nn.utils.rnn.pack_sequence`
           for details.
-        - **h_0** of shape `(num_directions, batch, hidden_size)`: tensor
+        - **h_0** of shape `( batch, hidden_size)`: tensor
           containing the initial hidden state for each element in the batch.
           Defaults to zero if not provided.
 
-    Outputs: output, h_n
-        - **output** of shape `(seq_len, batch, hidden_size * num_directions)`: tensor
-          containing the output features (`h_k`) from the last layer of the RNN,
-          for each `k`.  If a :class:`torch.nn.utils.rnn.PackedSequence` has
-          been given as the input, the output will also be a packed sequence.
-        - **h_n** (num_directions, batch, hidden_size): tensor
-          containing the hidden state for `k = seq_len`.
+    Outputs: output  
+        - **output** of shape `(seq_len, batch, hidden_size)`
     """
 
-    def __init__(self, hidden_size, 
-                 batch_first=False, bidirectional=False, recurrent_inits=None,
-                 **kwargs):
+    def __init__(self, hidden_size,recurrent_init=None, **kwargs):
         super(IndRNN_onlyrecurrent, self).__init__()
         self.hidden_size = hidden_size
-        self.batch_first = batch_first
-        self.bidirectional = bidirectional
+        self.indrnn_cell=IndRNNCell_onlyrecurrent(hidden_size, **kwargs)
 
-        num_directions = 2 if self.bidirectional else 1
+        if recurrent_init is not None:
+            kwargs["recurrent_init"] = recurrent_init
+        self.recurrent_init=recurrent_init
+        # h0 = torch.zeros(hidden_size * num_directions)
+        # self.register_buffer('h0', torch.autograd.Variable(h0))
+        self.reset_parameters()
 
-        if batch_first:
-            self.time_index = 1
-            self.batch_index = 0
-        else:
-            self.time_index = 0
-            self.batch_index = 1
+    def reset_parameters(self):
+        for name, weight in self.named_parameters():
+            if "weight_hh" in name:
+                if self.recurrent_init is None:
+                    nn.init.uniform(weight, a=0, b=1)
+                else:
+                    self.recurrent_init(weight)
 
-        cells = []
-        directions = []
-        if recurrent_inits is not None:
-            kwargs["recurrent_init"] = recurrent_inits
-        for dir in range(num_directions):
-            directions.append(IndRNNCell_onlyrecurrent(hidden_size, **kwargs))
-        self.cells = nn.ModuleList(directions)
-
-        h0 = torch.zeros(hidden_size * num_directions)
-        self.register_buffer('h0', torch.autograd.Variable(h0))
-
-    def forward(self, x, hidden=None):
-        time_index = self.time_index
-        batch_index = self.batch_index
-        num_directions = 2 if self.bidirectional else 1
-        hidden_init = self.h0.unsqueeze(0).expand(
-            x.size(batch_index),
-            self.hidden_size * num_directions).contiguous()
-
-        x_n = []
-        for dir, cell in enumerate(self.cells):
-            hx_cell = hidden_init[
-                :, self.hidden_size * dir: self.hidden_size * (dir + 1)]
-            outputs = []
-            hiddens = []
-            x_T = torch.unbind(x, time_index)
-            if dir == 1:
-                x_T = reversed(x_T)
-            for x_t in x_T:
-                hx_cell = cell(x_t, hx_cell)
-                outputs.append(hx_cell)
-            if dir == 1:
-                outputs = outputs[::-1]
-            x_cell = torch.stack(outputs, time_index)
-            x_n.append(x_cell)
-            hiddens.append(hx_cell)
-        x = torch.cat(x_n, -1)
-        return x.squeeze(2), torch.cat(hiddens, -1)
+    def forward(self, input, h0=None):
+        assert input.dim() == 2 or input.dim() == 3        
+        if h0 is None:
+            h0 = input.data.new(input.size(-2),input.size(-1)).zero_().contiguous()
+        elif (h0.size(-1)!=input.size(-1)) or (h0.size(-2)!=input.size(-2)):
+            raise RuntimeError(
+                'The initial hidden size must be equal to input_size. Expected {}, got {}'.format(
+                    h0.size(), input.size()))
+        outputs=[]
+        hx_cell=h0
+        for input_t in input:
+            hx_cell = self.indrnn_cell(input_t, hx_cell)
+            outputs.append(hx_cell)
+        out_put = torch.stack(outputs, 0)
+        return out_put

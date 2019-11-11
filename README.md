@@ -5,14 +5,14 @@ This code is to implement the [IndRNN](https://arxiv.org/abs/1803.04831) and the
 
 Please cite the following paper if you find it useful.  
 [Shuai Li, Wanqing Li, Chris Cook, Ce Zhu, and Yanbo Gao. "Independently Recurrent Neural Network (IndRNN): Building A Longer and Deeper RNN." CVPR 2018.](http://openaccess.thecvf.com/content_cvpr_2018/html/Li_Independently_Recurrent_Neural_CVPR_2018_paper.html)  
-[Shuai Li, Wanqing Li, Chris Cook, Yanbo Gao, and Ce Zhu. "Deep Independently Recurrent Neural Network (IndRNN)." arXiv preprint arXiv:1910.06251, 2019.](https://arxiv.org/abs/1910.06251)
+[Shuai Li, Wanqing Li, Chris Cook, Yanbo Gao, and Ce Zhu. "Deep Independently Recurrent Neural Network (IndRNN)." arXiv preprint arXiv:1910.06251, 2019.](https://arxiv.org/abs/1910.06251)  
 @inproceedings{li2018independently,
   title={Independently recurrent neural network (indrnn): Building a longer and deeper rnn},
   author={Li, Shuai and Li, Wanqing and Cook, Chris and Zhu, Ce and Gao, Yanbo},
   booktitle={Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition},
   pages={5457--5466},
   year={2018}
-}
+}  
 @article{li2019deep,
   title={Deep Independently Recurrent Neural Network (IndRNN)},
   author={Li, Shuai and Li, Wanqing and Cook, Chris and Gao, Yanbo and Zhu, Ce},
@@ -22,15 +22,14 @@ Please cite the following paper if you find it useful.
 
 # Summary of advantages
 - Able to process longer sequences (over 5000 steps): gradient vanishing and exploding problem is solved.  
-- Able to construct deeper networks (over 20layer, much deeper if GPU memory supports): techniques from CNN such as Batch normalization and non-saturated functions such as ReLU can be efficiently used.  
+- Able to construct deeper networks (over 20layer, much deeper if GPU memory supports)    
 - Able to be robustly trained with ReLU  
 - Able to interpret the behaviour of IndRNN neurons independently without the effect from the others  
-- Reduced complexity (10x faster than cuDNN LSTM)
+- Reduced complexity (over 10x faster than cuDNN LSTM when the sequence is long)
 
 # Usage  
 `IndRNN_onlyrecurrent.py` provides only the `recurrent+activation of the IndRNN function`. Therefore, processing of the input with dense connection or convolution operation is needed. This is usedful for adding batch normalization (BN) between the processing of input and activation function. Just consider it as an Relu function with recurrent connections. I believe this is more flexible since you can add all different processings to the inputs.   
-`cuda_IndRNN_onlyrecurrent` is the CUDA version. It is much faster than the simple pytorch implementation. For the sequential MNIST example (length 784), it runs over 31 times faster.   
-It is much more flexible by treating it as an activitation function such as ReLU where BN or other techniqeus can be inserted between the fully connected layers and the Recurrent part.  
+`cuda_IndRNN_onlyrecurrent` is the CUDA version. It is much faster than the simple pytorch implementation. For the sequential MNIST example (length 784), it runs over 31 times faster.    
 
 ### Requirements  
 - Pytorch  
