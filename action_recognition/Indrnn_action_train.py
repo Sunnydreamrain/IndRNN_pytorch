@@ -25,49 +25,64 @@ opts.train_opts(parser)
 args = parser.parse_args()
 print(args)
 
-import Indrnn_action_network
 
+outputclass=60
+indim=50*3
+if args.geo_aug:
+  indim=50*3+897*2
 batch_size = args.batch_size
 seq_len=args.seq_len
-outputclass=60
-indim=50
-gradientclip_value=10
-U_bound=Indrnn_action_network.U_bound
+gradientclip_value=args.gradclipvalue
+if args.U_bound==0:
+  U_bound=np.power(10,(np.log10(args.MAG)/args.seq_len))   
+else:
+  U_bound=args.U_bound
 
-
-
-model = Indrnn_action_network.stackedIndRNN_encoder(indim, outputclass)  
+if args.model=='plainIndRNN':
+  import Indrnn_plainnet as Indrnn_network
+  model = Indrnn_network.stackedIndRNN_encoder(indim, outputclass)  
+elif args.model=='residualIndRNN':
+  import Indrnn_residualnet_preact as Indrnn_network
+  model = Indrnn_network.ResidualNet(indim, outputclass)  
+elif args.model=='denseIndRNN':
+  import Indrnn_densenet as Indrnn_network
+  if args.time_diff:
+    import Indrnn_densenet_FA as Indrnn_network
+  from ast import literal_eval
+  block_config = literal_eval(args.block_config)
+  model = Indrnn_network.DenseNet(indim, outputclass, growth_rate=args.growth_rate, block_config=block_config,
+                                        num_init_features=args.growth_rate * args.num_first)
+else:
+  print('set the model type: plainIndRNN, residualIndRNN, denseIndRNN')
+  assert 2==3                                        
 model.cuda()
 criterion = nn.CrossEntropyLoss()
+###
+params = list(model.parameters()) + list(criterion.parameters())
+total_params = sum(x.size()[0] * x.size()[1] if len(x.size()) > 1 else x.size()[0] for x in params if x.size())
+print('Args:', args)
+print('Model total parameters:', total_params)
 
 #Adam with lr 2e-4 works fine.
 learning_rate=args.lr
-if args.use_weightdecay_nohiddenW:
-  param_decay=[]
-  param_nodecay=[]
-  for name, param in model.named_parameters():
-    if 'weight_hh' in name or 'bias' in name:
-      param_nodecay.append(param)      
-      #print('parameters no weight decay: ',name)          
-    else:
-      param_decay.append(param)      
-      #print('parameters with weight decay: ',name)          
+param_decay=[]
+param_nodecay=[]
+for name, param in model.named_parameters():
+  if 'weight_hh' in name or 'bias' in name:
+    param_nodecay.append(param)      
+    #print('parameters no weight decay: ',name)    
+  elif (not args.bn_decay) and ('norm' in name):
+    param_nodecay.append(param)      
+    #print('parameters no weight decay: ',name)             
+  else:
+    param_decay.append(param)      
+    #print('parameters with weight decay: ',name)          
+            
+optimizer = torch.optim.Adam([
+        {'params': param_nodecay},
+        {'params': param_decay, 'weight_decay': args.decayfactor}
+    ], lr=learning_rate) 
 
-  if args.opti=='sgd':
-    optimizer = torch.optim.SGD([
-            {'params': param_nodecay},
-            {'params': param_decay, 'weight_decay': args.decayfactor}
-        ], lr=learning_rate,momentum=0.9,nesterov=True)   
-  else:                
-    optimizer = torch.optim.Adam([
-            {'params': param_nodecay},
-            {'params': param_decay, 'weight_decay': args.decayfactor}
-        ], lr=learning_rate) 
-else:  
-  if args.opti=='sgd':   
-    optimizer=torch.optim.Adam(model.parameters(), lr=learning_rate,momentum=0.9,nesterov=True)
-  else:                      
-    optimizer=torch.optim.Adam(model.parameters(), lr=learning_rate)
 
 if args.test_CV:
   train_datasets='train_CV_ntus'
@@ -75,12 +90,12 @@ if args.test_CV:
 else:
   train_datasets='train_ntus'
   test_dataset='test_ntus'
-  
-from data_reader_numpy_witheval import DataHandler_train,DataHandler_eval  
-from data_reader_numpy_test import DataHandler as testDataHandler
-dh_train = DataHandler_train(batch_size,seq_len)
-dh_eval = DataHandler_eval(batch_size,seq_len)
-dh_test= testDataHandler(batch_size,seq_len)
+geo_aug=args.geo_aug 
+data_randtime_aug=args.data_randtime_aug 
+from data_reader import DataHandler
+dh_train = DataHandler(batch_size,seq_len,train_or_eval='train')
+dh_eval = DataHandler(batch_size,seq_len,train_or_eval='eval')
+dh_test= DataHandler(batch_size,seq_len,train_or_eval='test')
 num_train_batches=int(np.ceil(dh_train.GetDatasetSize()/(batch_size+0.0)))
 num_eval_batches=int(np.ceil(dh_eval.GetDatasetSize()/(batch_size+0.0)))
 num_test_batches=int(np.ceil(dh_test.GetDatasetSize()/(batch_size+0.0)))
@@ -93,10 +108,12 @@ def train(num_train_batches):
   start_time = time.time()
   for batchi in range(0,num_train_batches):
     inputs,targets=dh_train.GetBatch()
-    inputs=inputs.transpose(1,0,2,3)
+    inputs=inputs.transpose(1,0,2,3)    
     
     inputs=Variable(torch.from_numpy(inputs).cuda(), requires_grad=True)
     targets=Variable(torch.from_numpy(np.int64(targets)).cuda(), requires_grad=False)
+    seq_len, batch_size, joints_no,_=inputs.size()             
+    inputs=inputs.view(seq_len,batch_size,3*joints_no)   
 
     model.zero_grad()
     if args.constrain_U:
@@ -133,6 +150,8 @@ def eval(dh,num_batches,use_bn_trainstat=False):
     inputs=inputs.transpose(1,0,2,3)
     inputs=Variable(torch.from_numpy(inputs).cuda())
     targets=Variable(torch.from_numpy(np.int64(targets)).cuda())
+    seq_len, batch_size, joints_no,_=inputs.size()             
+    inputs=inputs.view(seq_len,batch_size,3*joints_no)   
         
     output=model(inputs)
     pred = output.data.max(1)[1] # get the index of the max log-probability
@@ -163,6 +182,8 @@ def test(dh,num_batches,use_bn_trainstat=False):
     testlabels[index]=targets
     inputs=Variable(torch.from_numpy(inputs).cuda())
     targets=Variable(torch.from_numpy(np.int64(targets)).cuda())
+    seq_len, batch_size, joints_no,_=inputs.size()             
+    inputs=inputs.view(seq_len,batch_size,3*joints_no)   
         
     output=model(inputs)
     pred = output.data.max(1)[1] # get the index of the max log-probability
@@ -173,7 +194,6 @@ def test(dh,num_batches,use_bn_trainstat=False):
     count+=1
     if count==num_batches*args.test_no:
       break    
-  #total_ave_acc/=args.test_no
   top = np.argmax(total_ave_acc, axis=-1)
   eval_acc=np.mean(np.equal(top, testlabels))    
   elapsed = time.time() - start_time
@@ -184,18 +204,16 @@ def test(dh,num_batches,use_bn_trainstat=False):
 def clip_gradient(model, clip):
     for p in model.parameters():
         p.grad.data.clamp_(-clip,clip)
-        #print(p.size(),p.grad.data)
-
-def adjust_learning_rate(optimizer, lr):
-    """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr     
 
 def clip_weight(RNNmodel, clip):
     for name, param in RNNmodel.named_parameters():
       if 'weight_hh' in name:
         param.data.clamp_(-clip,clip)
-    
+def adjust_learning_rate(optimizer, lr):
+    """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr 
+            
 lastacc=0
 dispFreq=20
 patience=0
@@ -229,7 +247,7 @@ test_acc=test(dh_test,num_test_batches)
 test_acc=test(dh_test,num_test_batches,True)     
 save_name='indrnn_action_model' 
 with open(save_name, 'wb') as f:
-    torch.save(model, f)
+    torch.save(model.state_dict(), f)
 
 
 

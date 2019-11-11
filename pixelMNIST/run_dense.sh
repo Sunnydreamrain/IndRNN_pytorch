@@ -1,0 +1,4 @@
+CUDA_VISIBLE_DEVICES=4 python -u Indrnn_mnist_train.py --constrain_U --model 'denseIndRNN' --bn_location 'bn_after' --num_first 6 --add_last_layer --u_lastlayer_ini --block_config '(8,6,4)' --growth_rate 16 --dropout 0.2 --dropout_sec 0.1 --dropout_trans 0.1 --dropout_first 0.2 --dropout_last 0.1 --batch_size 32 --pThre 100 2>&1 | tee denselogindrnn_864_first6_grow16_drop21121_bs32_consU_inilast_pThre100.log &
+
+
+CUDA_VISIBLE_DEVICES=8 python -u Indrnn_mnist_train.py --use_permute --constrain_U --model 'denseIndRNN' --bn_location 'bn_after' --num_first 6 --add_last_layer --u_lastlayer_ini --block_config '(8,6,4)' --growth_rate 16 --dropout 0.2 --dropout_sec 0.1 --dropout_trans 0.1 --dropout_first 0.2 --dropout_last 0.1 --batch_size 32 --pThre 100 2>&1 | tee permute_denselogindrnn_864_first6_grow16_drop21121_bs32_consU_inilast_pThre100.log &

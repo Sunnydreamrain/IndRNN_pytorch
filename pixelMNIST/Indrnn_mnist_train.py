@@ -25,15 +25,60 @@ opts.train_opts(parser)
 args = parser.parse_args()
 print(args)
 
-import Indrnn_mnist_network
-
-
-batch_size = args.batch_size
 outputclass=10
 indim=1
-gradientclip_value=10
-U_bound=Indrnn_mnist_network.U_bound
+batch_size = args.batch_size
+seq_len=args.seq_len
+gradientclip_value=args.gradclipvalue
 use_permute=args.use_permute
+if args.U_bound==0:
+  U_bound=np.power(10,(np.log10(args.MAG)/args.seq_len))   
+else:
+  U_bound=args.U_bound
+
+if args.model=='plainIndRNN':
+  import Indrnn_plainnet as Indrnn_network
+  model = Indrnn_network.stackedIndRNN_encoder(indim, outputclass)  
+elif args.model=='residualIndRNN':
+  import Indrnn_residualnet_preact as Indrnn_network
+  model = Indrnn_network.ResidualNet(indim, outputclass)  
+elif args.model=='denseIndRNN':
+  import Indrnn_densenet as Indrnn_network
+  #if args.time_diff:
+  #  import Indrnn_densenet_FA as Indrnn_network
+  from ast import literal_eval
+  block_config = literal_eval(args.block_config)
+  model = Indrnn_network.DenseNet(indim, outputclass, growth_rate=args.growth_rate, block_config=block_config,
+                                        num_init_features=args.growth_rate * args.num_first)
+else:
+  print('set the model type: plainIndRNN, residualIndRNN, denseIndRNN')
+  assert 2==3
+model.cuda()
+criterion = nn.CrossEntropyLoss()
+###
+params = list(model.parameters()) + list(criterion.parameters())
+total_params = sum(x.size()[0] * x.size()[1] if len(x.size()) > 1 else x.size()[0] for x in params if x.size())
+print('Args:', args)
+print('Model total parameters:', total_params)
+
+#Adam with lr 2e-4 works fine.
+learning_rate=args.lr
+#use_weightdecay_nohiddenW:
+param_decay=[]
+param_nodecay=[]
+for name, param in model.named_parameters():
+  if 'weight_hh' in name or 'bias' in name:
+    param_nodecay.append(param)      
+    #print('parameters no weight decay: ',name)          
+  else:
+    param_decay.append(param)      
+    #print('parameters with weight decay: ',name)          
+            
+optimizer = torch.optim.Adam([
+        {'params': param_nodecay},
+        {'params': param_decay, 'weight_decay': args.decayfactor}
+    ], lr=learning_rate) 
+
 from Data_gen import DataHandler,evalDataHandler,testDataHandler
 dh_train=DataHandler(batch_size)
 dh_eval=evalDataHandler(batch_size)
@@ -44,45 +89,9 @@ num_test_batches=int(np.ceil(dh_test.GetDatasetSize()/(batch_size+0.0)))
 x,y=dh_train.GetBatch()
 seq_len=x.shape[1]
 print(num_train_batches,num_test_batches)
-feature_size=x.shape[2]
 if seq_len!=args.seq_len:
   print('error seq_len')
   assert 2==3
-
-model = Indrnn_mnist_network.stackedIndRNN_encoder(indim, outputclass)  
-model.cuda()
-criterion = nn.CrossEntropyLoss()
-
-#Adam with lr 2e-4 works fine.
-learning_rate=args.lr
-if args.use_weightdecay_nohiddenW:
-  param_decay=[]
-  param_nodecay=[]
-  for name, param in model.named_parameters():
-    if 'weight_hh' in name or 'bias' in name:
-      param_nodecay.append(param)      
-      #print('parameters no weight decay: ',name)          
-    else:
-      param_decay.append(param)      
-      #print('parameters with weight decay: ',name)          
-
-  if args.opti=='sgd':
-    optimizer = torch.optim.SGD([
-            {'params': param_nodecay},
-            {'params': param_decay, 'weight_decay': args.decayfactor}
-        ], lr=learning_rate,momentum=0.9,nesterov=True)   
-  else:                
-    optimizer = torch.optim.Adam([
-            {'params': param_nodecay},
-            {'params': param_decay, 'weight_decay': args.decayfactor}
-        ], lr=learning_rate) 
-else:  
-  if args.opti=='sgd':   
-    optimizer=torch.optim.Adam(model.parameters(), lr=learning_rate,momentum=0.9,nesterov=True)
-  else:                      
-    optimizer=torch.optim.Adam(model.parameters(), lr=learning_rate)
-
-
 
 
 def train(num_train_batches):
@@ -198,9 +207,9 @@ for batchi in range(1,10000000):
     
 test_acc=eval(dh_test,num_test_batches,True)   
 test_acc=eval(dh_test,num_test_batches,True,True)    
-# save_name='indrnn_pixelmnist_model' 
-# with open(save_name, 'wb') as f:
-#     torch.save(model, f)
+save_name='indrnn_pixelmnist_model' 
+with open(save_name, 'wb') as f:
+    torch.save(model.state_dict(), f)
 
 
 

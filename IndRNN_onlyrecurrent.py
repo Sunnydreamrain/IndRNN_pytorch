@@ -157,4 +157,4 @@ class IndRNN_onlyrecurrent(nn.Module):
             x_n.append(x_cell)
             hiddens.append(hx_cell)
         x = torch.cat(x_n, -1)
-        return x.squeeze(2), torch.cat(hiddens, -1)
+        return x.squeeze(2)#, torch.cat(hiddens, -1)
