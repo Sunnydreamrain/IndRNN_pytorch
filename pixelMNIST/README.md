@@ -1,7 +1,7 @@
 ## The Sequential MNIST example  
 ### Usage
 Run the code with the CUDA version. It is much faster than the pytorch implementation of IndRNN.  
-
+The command to run the code has included in the run_x.sh fiels for different networks (plain IndRNN, residual IndRNN and dense IndRNN). Following are two examples. 
    For Plain IndRNN:
    `python -u Indrnn_mnist_train.py --u_lastlayer_ini --constrain_U --model 'plainIndRNN' --bn_location 'bn_after' --num_layers 6 --hidden_size 128 --dropout 0.1 --batch_size 32 --pThre 100`   
    For Dense IndRNN:  
