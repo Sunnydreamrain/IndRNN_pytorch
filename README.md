@@ -5,7 +5,7 @@ This code is to implement the [IndRNN](https://arxiv.org/abs/1803.04831) and the
 
 Please cite the following paper if you find it useful.  
 [Shuai Li, Wanqing Li, Chris Cook, Ce Zhu, and Yanbo Gao. "Independently Recurrent Neural Network (IndRNN): Building A Longer and Deeper RNN." CVPR 2018.](http://openaccess.thecvf.com/content_cvpr_2018/html/Li_Independently_Recurrent_Neural_CVPR_2018_paper.html)  
-[Shuai Li, Wanqing Li, Chris Cook, Yanbo Gao, and Ce Zhu. "Deep Independently Recurrent Neural Network (IndRNN)." arXiv preprint arXiv:1910.06251, 2019.](https://arxiv.org/abs/1910.06251)  
+[Shuai Li, Wanqing Li, Chris Cook, and Yanbo Gao. "Deep Independently Recurrent Neural Network (IndRNN)." arXiv preprint arXiv:1910.06251, 2019.](https://arxiv.org/abs/1910.06251)  
 @inproceedings{li2018independently,
   title={Independently recurrent neural network (indrnn): Building a longer and deeper rnn},
   author={Li, Shuai and Li, Wanqing and Cook, Chris and Zhu, Ce and Gao, Yanbo},
